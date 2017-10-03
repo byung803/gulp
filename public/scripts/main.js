@@ -1,5 +1,17 @@
-var name = 'yooohooo';
+class Person {
+  constructor(name) {
+    this.name = name;
+  }
+  hello() {
+    if (typeof this.name === 'string') {
+      return 'Hello, I am ' + this.name;
+    } else {
+      return 'Hello!';
+    }
+  }
+}
 
-document.write('Hello my name is ' + name);
+var person = new Person('byungmin2');
+var greetHTML = templates['greeting']({message: person.hello()});
 
-console.log('check');
+document.write(greetHTML);

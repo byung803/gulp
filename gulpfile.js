@@ -8,7 +8,9 @@ var autoprefixer = require('gulp-autoprefixer');
 var plumber = require('gulp-plumber');
 var sourcemaps = require('gulp-sourcemaps');
 var sass = require('gulp-sass');
-
+var babel = require('gulp-babel');
+var del = require('del');
+var zip = require('gulp-zip');
 //Less plugins
 var less = require('gulp-less');
 var LessAutoprefix = require('less-plugin-autoprefix');
@@ -16,12 +18,25 @@ var lessAutoprefix = new LessAutoprefix({
   browsers: ['last 2 versions']
 })
 
+//handlebars
+var handlebars = require('gulp-handlebars');
+var handlebarsLib = require('handlebars');
+var declare = require('gulp-declare');
+var wrap = require('gulp-wrap');
+
+//image compression
+var imagemin = require('gulp-imagemin');
+var imageminPngquant = require('imagemin-pngquant');
+var imageminJpegRecompress = require('imagemin-jpeg-recompress');
+
 //File paths
-var DIST_PATH = 'public/dist';
+var DIST_PATH = 'public/dist2';
 var SCRIPTS_PATH = 'public/scripts/**/*.js';
 var CSS_PATH = 'public/css/**/*.css';
 var SCSS_PATH = 'public/scss/**/*.scss';
 var LESS_PATH = 'public/less/**/*.less';
+var TEMPLATES_PATH = 'templates/**/*.hbs';
+var IMAGE_PATH = 'public/images/**/*.{png,jpeg,jpg,svg,gif}'
 
 // Styles
 // gulp.task('styles', function() {
@@ -83,9 +98,19 @@ gulp.task('scripts', function (cb) {
   console.log('starting script task');
   pump([
       gulp.src(SCRIPTS_PATH),
+      plumber((err) => {
+        console.log('Scripts Task Error');
+        console.log(err);
+        this.emit('end');
+      }),
+      sourcemaps.init(),
+      babel({
+        presets: ['es2015']
+      }),
       uglify(),
       concat('scripts.js'),
-      gulp.dest('public/dist/'),
+      sourcemaps.write(),
+      gulp.dest(DIST_PATH),
       (livereload())
     ],
     cb
@@ -103,13 +128,53 @@ gulp.task('script', function(){
 // Images
 gulp.task('images', () => {
   console.log('starting images');
+  return gulp.src(IMAGE_PATH)
+    .pipe(imagemin(
+      [
+        imagemin.gifsicle(),
+        imagemin.jpegtran(),
+        imagemin.optipng(),
+        imagemin.svgo(),
+        imageminPngquant(),
+        imageminJpegRecompress()
+      ]
+    ))
+     .pipe(gulp.dest(DIST_PATH + '/images/'));
 });
 
-gulp.task('default', function() {
+gulp.task('templates', () => {
+  console.log('starting templates');
+  return gulp.src(TEMPLATES_PATH)
+    .pipe(handlebars({
+      handlebars: handlebarsLib
+    }))
+    .pipe(wrap('Handlebars.template(<%= contents %>)'))
+    .pipe(declare({
+      namespace: 'templates',
+      noRedeclare: true
+    }))
+    .pipe(concat('templates.js'))
+    .pipe(gulp.dest(DIST_PATH))
+    .pipe(livereload())
+});
+
+gulp. task('clean', () => {
+  return del.sync([
+    `${DIST_PATH}/*`
+  ]);
+});
+
+gulp.task('export', () => {
+    return gulp.src('public/**/*')
+    .pipe(zip('website.zip'))
+    .pipe(gulp.dest('./'))
+});
+
+gulp.task('default', ['clean','images', 'templates', 'scripts', 'styles'], function() {
   console.log('starting default tesk');
 });
 
-gulp.task('watch', () => {
+gulp.task('watch', ['default'], () => {
   console.log('Starting watch task');
   require('./server.js');
   livereload.listen();
@@ -117,4 +182,5 @@ gulp.task('watch', () => {
   gulp.watch(CSS_PATH, ['styles']);
   gulp.watch(SCSS_PATH, ['styles']);
   gulp.watch(LESS_PATH, ['styles']);
+  gulp.watch(TEMPLATES_PATH, ['templates']);
 });
